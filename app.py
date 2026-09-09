@@ -1,16 +1,11 @@
-# ============================================================
-# ManganAI - COMPLETE STREAMLIT FRONTEND
-# ============================================================
-
 import streamlit as st
 import pandas as pd
 import numpy as np
 import joblib
 from pathlib import Path
 
-
 # ============================================================
-# 1. PAGE CONFIGURATION
+# ManganAI - COMPLETE STREAMLIT WEBSITE
 # ============================================================
 
 st.set_page_config(
@@ -20,73 +15,70 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-
 # ============================================================
-# 2. PROJECT DIRECTORIES
+# PATHS
 # ============================================================
 
 BASE_DIR = Path(__file__).resolve().parent
-MODEL_DIR = BASE_DIR / "models"
+
 DATA_DIR = BASE_DIR / "data"
+MODEL_DIR = BASE_DIR / "models"
+
+EXPLORATION_CSV = DATA_DIR / "exploration.csv"
+PRODUCTION_CSV = DATA_DIR / "production.csv"
+
+EXPLORATION_MODEL = MODEL_DIR / "exploration_model.pkl"
+PRODUCTION_MODEL = MODEL_DIR / "production_model.pkl"
 
 
 # ============================================================
-# 3. ATTRACTIVE FRONTEND STYLE
+# STYLING
 # ============================================================
 
 st.markdown("""
 <style>
 
 .main-title {
-    font-size: 44px;
+    font-size: 46px;
     font-weight: 800;
     margin-bottom: 0;
 }
 
-.sub-title {
+.subtitle {
     font-size: 19px;
     opacity: 0.75;
     margin-bottom: 20px;
 }
 
-.section-title {
-    font-size: 25px;
-    font-weight: 750;
-    margin-top: 20px;
+.card {
+    padding: 22px;
+    border-radius: 18px;
+    border: 1px solid rgba(128,128,128,0.25);
     margin-bottom: 12px;
 }
 
-.kpi {
-    padding: 18px;
-    border-radius: 16px;
+.card-title {
+    font-size: 15px;
+    opacity: 0.7;
+}
+
+.card-value {
+    font-size: 28px;
+    font-weight: 700;
+    margin-top: 7px;
+}
+
+.module-card {
+    padding: 24px;
+    border-radius: 18px;
     border: 1px solid rgba(128,128,128,0.25);
-    text-align: center;
-    min-height: 120px;
+    min-height: 180px;
 }
 
-.kpi-title {
-    font-size: 14px;
-    opacity: 0.70;
-}
-
-.kpi-value {
-    font-size: 27px;
-    font-weight: 750;
-    margin-top: 8px;
-}
-
-.feature-card {
-    padding: 22px;
-    border-radius: 16px;
+.result-box {
+    padding: 25px;
+    border-radius: 18px;
     border: 1px solid rgba(128,128,128,0.25);
-    min-height: 175px;
-}
-
-.result-card {
-    padding: 22px;
-    border-radius: 16px;
-    border: 1px solid rgba(128,128,128,0.25);
-    margin-top: 10px;
 }
 
 </style>
@@ -94,109 +86,80 @@ st.markdown("""
 
 
 # ============================================================
-# 4. FIND MODEL FILES
+# LOAD DATA
 # ============================================================
 
-def find_model(filename):
-
-    possible_paths = [
-        MODEL_DIR / filename,
-        BASE_DIR / filename
-    ]
-
-    for path in possible_paths:
-        if path.exists():
-            return path
-
+@st.cache_data
+def load_exploration_data():
+    if EXPLORATION_CSV.exists():
+        try:
+            return pd.read_csv(EXPLORATION_CSV)
+        except Exception:
+            return None
     return None
 
 
-LOCATION_MODEL_PATH = find_model(
-    "exploration_model.pkl"
-)
-
-PRODUCTION_MODEL_PATH = find_model(
-    "production_model.pkl"
-)
+@st.cache_data
+def load_production_data():
+    if PRODUCTION_CSV.exists():
+        try:
+            return pd.read_csv(PRODUCTION_CSV)
+        except Exception:
+            return None
+    return None
 
 
 # ============================================================
-# 5. LOAD MODELS
-#
-# IMPORTANT:
-# This version DOES NOT hide the real error.
+# LOAD MODELS
 # ============================================================
 
 @st.cache_resource
-def load_location_model():
-
-    if LOCATION_MODEL_PATH is None:
-        return None, "exploration_model.pkl was not found."
-
-    try:
-        model = joblib.load(
-            LOCATION_MODEL_PATH
-        )
-
-        return model, None
-
-    except Exception as e:
-
-        return None, (
-            f"Could not load exploration_model.pkl: "
-            f"{type(e).__name__}: {e}"
-        )
+def load_exploration_model():
+    if EXPLORATION_MODEL.exists():
+        try:
+            return joblib.load(EXPLORATION_MODEL)
+        except Exception:
+            return None
+    return None
 
 
 @st.cache_resource
 def load_production_model():
-
-    if PRODUCTION_MODEL_PATH is None:
-        return None, "production_model.pkl was not found."
-
-    try:
-        model = joblib.load(
-            PRODUCTION_MODEL_PATH
-        )
-
-        return model, None
-
-    except Exception as e:
-
-        return None, (
-            f"Could not load production_model.pkl: "
-            f"{type(e).__name__}: {e}"
-        )
+    if PRODUCTION_MODEL.exists():
+        try:
+            return joblib.load(PRODUCTION_MODEL)
+        except Exception:
+            return None
+    return None
 
 
-location_model, location_error = load_location_model()
+exploration_df = load_exploration_data()
+production_df = load_production_data()
 
-production_model, production_error = load_production_model()
+exploration_model = load_exploration_model()
+production_model = load_production_model()
 
 
 # ============================================================
-# 6. GET MODEL FEATURES
+# FEATURE DETECTION
 # ============================================================
 
-def get_features(model):
+def get_model_features(model):
 
     if model is None:
         return []
 
+    # Most sklearn models
     if hasattr(model, "feature_names_in_"):
-
         try:
             return list(model.feature_names_in_)
         except Exception:
             pass
 
-    # Some models contain an estimator inside a pipeline
+    # Pipeline
     if hasattr(model, "named_steps"):
-
         for _, step in model.named_steps.items():
-
             if hasattr(step, "feature_names_in_"):
-
                 try:
                     return list(step.feature_names_in_)
                 except Exception:
@@ -205,83 +168,45 @@ def get_features(model):
     return []
 
 
-location_features = get_features(
-    location_model
+exploration_features = get_model_features(
+    exploration_model
 )
 
-production_features = get_features(
+production_features = get_model_features(
     production_model
 )
 
 
 # ============================================================
-# 7. LOAD DASHBOARD DATA
+# CSV FEATURE FALLBACK
 # ============================================================
 
-def load_dashboard_data():
+def get_csv_features(df, model_features):
 
-    if not DATA_DIR.exists():
-        return None
+    if len(model_features) > 0:
+        return model_features
 
-    try:
+    if df is not None:
+        return list(df.select_dtypes(
+            include=np.number
+        ).columns)
 
-        csv_files = list(
-            DATA_DIR.glob("*.csv")
-        )
-
-        if not csv_files:
-            return None
-
-        # Prefer largest CSV
-        csv_files = sorted(
-            csv_files,
-            key=lambda x: x.stat().st_size,
-            reverse=True
-        )
-
-        df = pd.read_csv(
-            csv_files[0]
-        )
-
-        df.columns = [
-            str(c).strip()
-            for c in df.columns
-        ]
-
-        return df
-
-    except Exception:
-        return None
+    return []
 
 
-dashboard_df = load_dashboard_data()
+exploration_features = get_csv_features(
+    exploration_df,
+    exploration_features
+)
+
+production_features = get_csv_features(
+    production_df,
+    production_features
+)
 
 
 # ============================================================
-# 8. SAFE NUMERIC CONVERSION
-# ============================================================
-
-def numeric_average(df, column):
-
-    if df is None:
-        return None
-
-    if column not in df.columns:
-        return None
-
-    values = pd.to_numeric(
-        df[column],
-        errors="coerce"
-    ).dropna()
-
-    if len(values) == 0:
-        return None
-
-    return float(values.mean())
-
-
-# ============================================================
-# 9. DEFAULT INPUT VALUES
+# DEFAULT VALUE
 # ============================================================
 
 def default_value(feature):
@@ -303,7 +228,7 @@ def default_value(feature):
     if "density" in name:
         return 2.70
 
-    if "geological" in name and "score" in name:
+    if "geological" in name:
         return 0.70
 
     if "ndvi" in name:
@@ -321,11 +246,8 @@ def default_value(feature):
     if "temperature" in name:
         return 32.0
 
-    if "band" in name:
-        return 0.20
-
-    if name == "ei":
-        return 400.0
+    if "ore" in name and "grade" in name:
+        return 4.0
 
     if "target" in name and "production" in name:
         return 10000.0
@@ -336,23 +258,20 @@ def default_value(feature):
     if "production" in name:
         return 9000.0
 
-    if "downtime" in name:
-        return 10.0
-
     if "availability" in name:
         return 85.0
 
-    if "blasting" in name and "delay" in name:
+    if "downtime" in name:
         return 10.0
 
-    if "ore" in name and "grade" in name:
-        return 4.0
+    if "blasting" in name and "delay" in name:
+        return 10.0
 
     return 0.0
 
 
 # ============================================================
-# 10. CREATE MODEL INPUTS
+# SAFE INPUT CREATOR
 # ============================================================
 
 def create_inputs(features, prefix):
@@ -368,552 +287,75 @@ def create_inputs(features, prefix):
 
         with cols[i % 2]:
 
+            key = f"{prefix}_{str(feature)}"
+
             values[feature] = st.number_input(
                 str(feature),
-                value=float(
-                    default_value(feature)
-                ),
-                key=f"{prefix}_{feature}"
+                value=float(default_value(feature)),
+                key=key
             )
 
     return values
 
 
 # ============================================================
-# 11. DASHBOARD
+# PREDICTION HELPER
 # ============================================================
 
-def show_dashboard():
+def make_prediction(model, values, features):
 
-    st.markdown(
-        '<div class="main-title">⛏️ ManganAI</div>',
-        unsafe_allow_html=True
-    )
+    if model is None:
+        raise ValueError("Model could not be loaded.")
 
-    st.markdown(
-        '<div class="sub-title">'
-        'AI-Assisted Manganese Exploration & Production System'
-        '</div>',
-        unsafe_allow_html=True
-    )
-
-    st.success(
-        "🟢 ManganAI System Ready"
-    )
-
-    # --------------------------------------------------------
-    # KPI DATA
-    # --------------------------------------------------------
-
-    production = numeric_average(
-        dashboard_df,
-        "Production"
-    )
-
-    target_production = numeric_average(
-        dashboard_df,
-        "Target Production"
-    )
-
-    rainfall = numeric_average(
-        dashboard_df,
-        "Rainfall"
-    )
-
-    soil_moisture = numeric_average(
-        dashboard_df,
-        "Soil Moisture"
-    )
-
-    equipment_availability = numeric_average(
-        dashboard_df,
-        "Equipment Availability"
-    )
-
-    equipment_downtime = numeric_average(
-        dashboard_df,
-        "Equipment Downtime"
-    )
-
-    blasting_delay = numeric_average(
-        dashboard_df,
-        "Blasting Delay"
-    )
-
-    # --------------------------------------------------------
-    # TITLE
-    # --------------------------------------------------------
-
-    st.markdown(
-        '<div class="section-title">'
-        '📊 Operational Overview'
-        '</div>',
-        unsafe_allow_html=True
-    )
-
-    # --------------------------------------------------------
-    # KPI FUNCTION
-    # --------------------------------------------------------
-
-    def kpi(title, value, unit=""):
-
-        if value is None:
-            text = "N/A"
-        else:
-            text = f"{value:,.2f} {unit}"
-
-        return f"""
-        <div class="kpi">
-            <div class="kpi-title">{title}</div>
-            <div class="kpi-value">{text}</div>
-        </div>
-        """
-
-    # --------------------------------------------------------
-    # KPI ROW 1
-    # --------------------------------------------------------
-
-    c1, c2, c3, c4 = st.columns(4)
-
-    with c1:
-        st.markdown(
-            kpi(
-                "Average Production",
-                production,
-                "tonnes"
-            ),
-            unsafe_allow_html=True
+    if not features:
+        raise ValueError(
+            "No model input features were detected."
         )
 
-    with c2:
-        st.markdown(
-            kpi(
-                "Target Production",
-                target_production,
-                "tonnes"
-            ),
-            unsafe_allow_html=True
-        )
-
-    with c3:
-        st.markdown(
-            kpi(
-                "Equipment Availability",
-                equipment_availability,
-                "%"
-            ),
-            unsafe_allow_html=True
-        )
-
-    with c4:
-        st.markdown(
-            kpi(
-                "Equipment Downtime",
-                equipment_downtime,
-                "hrs"
-            ),
-            unsafe_allow_html=True
-        )
-
-    st.write("")
-
-    # --------------------------------------------------------
-    # KPI ROW 2
-    # --------------------------------------------------------
-
-    if (
-        production is not None
-        and target_production is not None
-        and target_production != 0
-    ):
-        achievement = (
-            production / target_production
-        ) * 100
-    else:
-        achievement = None
-
-    c5, c6, c7, c8 = st.columns(4)
-
-    with c5:
-        st.markdown(
-            kpi(
-                "Average Rainfall",
-                rainfall
-            ),
-            unsafe_allow_html=True
-        )
-
-    with c6:
-        st.markdown(
-            kpi(
-                "Soil Moisture",
-                soil_moisture
-            ),
-            unsafe_allow_html=True
-        )
-
-    with c7:
-        st.markdown(
-            kpi(
-                "Blasting Delay",
-                blasting_delay,
-                "hrs"
-            ),
-            unsafe_allow_html=True
-        )
-
-    with c8:
-        st.markdown(
-            kpi(
-                "Production Achievement",
-                achievement,
-                "%"
-            ),
-            unsafe_allow_html=True
-        )
-
-    st.divider()
-
-    # ========================================================
-    # PRODUCTION GRAPH
-    # ========================================================
-
-    st.markdown(
-        '<div class="section-title">'
-        '📈 Production Analytics'
-        '</div>',
-        unsafe_allow_html=True
+    input_df = pd.DataFrame(
+        [values],
+        columns=features
     )
 
-    if dashboard_df is not None:
+    prediction = model.predict(input_df)[0]
 
-        production_columns = []
-
-        for col in [
-            "Production",
-            "Target Production",
-            "Previous Production"
-        ]:
-
-            if col in dashboard_df.columns:
-                production_columns.append(col)
-
-        if production_columns:
-
-            graph_df = dashboard_df[
-                production_columns
-            ].copy()
-
-            for col in production_columns:
-
-                graph_df[col] = pd.to_numeric(
-                    graph_df[col],
-                    errors="coerce"
-                )
-
-            graph_df = graph_df.dropna(
-                how="all"
-            )
-
-            if not graph_df.empty:
-
-                st.line_chart(
-                    graph_df,
-                    use_container_width=True
-                )
-
-            else:
-
-                st.info(
-                    "Production data is empty."
-                )
-
-        else:
-
-            st.info(
-                "Production columns were not found "
-                "in the CSV file."
-            )
-
-    else:
-
-        st.warning(
-            "No CSV file was found inside the data folder."
-        )
-
-    # ========================================================
-    # ENVIRONMENT GRAPH
-    # ========================================================
-
-    st.markdown(
-        '<div class="section-title">'
-        '🌦️ Environmental Conditions'
-        '</div>',
-        unsafe_allow_html=True
-    )
-
-    if dashboard_df is not None:
-
-        environmental_columns = []
-
-        for col in [
-            "Rainfall",
-            "Soil Moisture",
-            "Vegetation Index",
-            "Land Temperature"
-        ]:
-
-            if col in dashboard_df.columns:
-                environmental_columns.append(col)
-
-        if environmental_columns:
-
-            env_df = dashboard_df[
-                environmental_columns
-            ].copy()
-
-            for col in environmental_columns:
-
-                env_df[col] = pd.to_numeric(
-                    env_df[col],
-                    errors="coerce"
-                )
-
-            env_df = env_df.dropna(
-                how="all"
-            )
-
-            if not env_df.empty:
-
-                st.line_chart(
-                    env_df,
-                    use_container_width=True
-                )
-
-    # ========================================================
-    # EQUIPMENT GRAPH
-    # ========================================================
-
-    st.markdown(
-        '<div class="section-title">'
-        '⚙️ Equipment Performance'
-        '</div>',
-        unsafe_allow_html=True
-    )
-
-    if dashboard_df is not None:
-
-        equipment_columns = []
-
-        for col in [
-            "Equipment Availability",
-            "Equipment Downtime",
-            "Blasting Delay"
-        ]:
-
-            if col in dashboard_df.columns:
-                equipment_columns.append(col)
-
-        if equipment_columns:
-
-            equipment_df = dashboard_df[
-                equipment_columns
-            ].copy()
-
-            for col in equipment_columns:
-
-                equipment_df[col] = pd.to_numeric(
-                    equipment_df[col],
-                    errors="coerce"
-                )
-
-            equipment_df = equipment_df.dropna(
-                how="all"
-            )
-
-            if not equipment_df.empty:
-
-                st.bar_chart(
-                    equipment_df,
-                    use_container_width=True
-                )
-
-    # ========================================================
-    # SUMMARY
-    # ========================================================
-
-    st.divider()
-
-    left, right = st.columns(2)
-
-    with left:
-
-        st.markdown(
-            '<div class="section-title">'
-            '🌱 Environmental Summary'
-            '</div>',
-            unsafe_allow_html=True
-        )
-
-        if rainfall is not None:
-            st.write(
-                f"🌧️ Average rainfall: "
-                f"**{rainfall:.2f}**"
-            )
-
-        if soil_moisture is not None:
-            st.write(
-                f"💧 Average soil moisture: "
-                f"**{soil_moisture:.2f}**"
-            )
-
-        temperature = numeric_average(
-            dashboard_df,
-            "Land Temperature"
-        )
-
-        if temperature is not None:
-            st.write(
-                f"🌡️ Average land temperature: "
-                f"**{temperature:.2f}**"
-            )
-
-        vegetation = numeric_average(
-            dashboard_df,
-            "Vegetation Index"
-        )
-
-        if vegetation is not None:
-            st.write(
-                f"🌿 Vegetation index: "
-                f"**{vegetation:.2f}**"
-            )
-
-    with right:
-
-        st.markdown(
-            '<div class="section-title">'
-            '🟢 System Health'
-            '</div>',
-            unsafe_allow_html=True
-        )
-
-        if location_model is not None:
-            st.success(
-                "📍 Location Prediction — Ready"
-            )
-        else:
-            st.error(
-                "📍 Location Prediction — Model Error"
-            )
-
-        if production_model is not None:
-            st.success(
-                "🏭 Production Prediction — Ready"
-            )
-        else:
-            st.error(
-                "🏭 Production Prediction — Model Error"
-            )
-
-        if production_model is not None:
-            st.success(
-                "🔄 Production Simulator — Ready"
-            )
-        else:
-            st.error(
-                "🔄 Production Simulator — Model Error"
-            )
-
-    # ========================================================
-    # MODULE CARDS
-    # ========================================================
-
-    st.divider()
-
-    st.markdown(
-        '<div class="section-title">'
-        '🚀 ManganAI Modules'
-        '</div>',
-        unsafe_allow_html=True
-    )
-
-    a, b, c = st.columns(3)
-
-    with a:
-
-        st.markdown(
-            """
-            <div class="feature-card">
-
-            <h3>📍 Manganese Location Prediction</h3>
-
-            Identify promising manganese locations
-            using geological and exploration data.
-
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
-
-    with b:
-
-        st.markdown(
-            """
-            <div class="feature-card">
-
-            <h3>🏭 Production Prediction</h3>
-
-            Predict expected manganese production
-            using mining, environmental and equipment
-            conditions.
-
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
-
-    with c:
-
-        st.markdown(
-            """
-            <div class="feature-card">
-
-            <h3>🔄 Production Improvement Simulator</h3>
-
-            Compare current conditions with improved
-            operating conditions and estimate production
-            change.
-
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
-
-    st.divider()
-
-    st.caption(
-        "ManganAI | AI-assisted manganese exploration "
-        "and production decision-support system"
-    )
+    return float(prediction), input_df
 
 
 # ============================================================
-# 12. SIDEBAR
+# TARGET COLUMN FINDER
+# ============================================================
+
+def find_target_column(features):
+
+    for feature in features:
+
+        name = str(feature).lower()
+
+        if (
+            "target production" in name
+            or
+            "target_production" in name
+        ):
+            return feature
+
+    return None
+
+
+# ============================================================
+# SIDEBAR
 # ============================================================
 
 st.sidebar.title("⛏️ ManganAI")
 
-st.sidebar.write(
-    "AI-Based Manganese Mining Intelligence"
+st.sidebar.caption(
+    "AI-Assisted Manganese Mining Intelligence"
 )
 
-st.sidebar.divider()
-
 page = st.sidebar.radio(
-    "Select Module",
+    "Navigation",
     [
-        "📊 Dashboard",
+        "🏠 Dashboard",
         "📍 Manganese Location Prediction",
         "🏭 Production Prediction",
         "🔄 Production Improvement Simulator"
@@ -925,123 +367,369 @@ page = st.sidebar.radio(
 # SIDEBAR MODEL STATUS
 # ============================================================
 
-with st.sidebar.expander(
-    "🔧 Model Status"
-):
+with st.sidebar.expander("🔧 System Status"):
 
-    if location_model is not None:
-
-        st.success(
-            "Location model loaded"
-        )
-
+    if exploration_model is not None:
+        st.success("Exploration Model ✓")
     else:
-
-        st.error(
-            "Location model could not be loaded"
-        )
-
-        if location_error:
-            st.caption(
-                location_error
-            )
+        st.error("Exploration Model ✗")
 
     if production_model is not None:
-
-        st.success(
-            "Production model loaded"
-        )
-
+        st.success("Production Model ✓")
     else:
+        st.error("Production Model ✗")
 
-        st.error(
-            "Production model could not be loaded"
-        )
+    if exploration_df is not None:
+        st.success("Exploration Data ✓")
+    else:
+        st.error("Exploration Data ✗")
 
-        if production_error:
-            st.caption(
-                production_error
-            )
-
-
-# ============================================================
-# DASHBOARD PAGE
-# ============================================================
-
-if page == "📊 Dashboard":
-
-    show_dashboard()
+    if production_df is not None:
+        st.success("Production Data ✓")
+    else:
+        st.error("Production Data ✗")
 
 
 # ============================================================
-# PAGE 1
-# LOCATION PREDICTION
+# DASHBOARD
 # ============================================================
 
-elif page == "📍 Manganese Location Prediction":
+if page == "🏠 Dashboard":
 
     st.markdown(
-        '<div class="main-title">'
-        '📍 Manganese Location Prediction'
+        '<div class="main-title">⛏️ ManganAI</div>',
+        unsafe_allow_html=True
+    )
+
+    st.markdown(
+        '<div class="subtitle">'
+        'AI-Assisted Manganese Exploration & Production System'
         '</div>',
         unsafe_allow_html=True
     )
 
+    st.success("🟢 ManganAI System Online")
+
+    st.divider()
+
+    # --------------------------------------------------------
+    # DATASET INFORMATION
+    # --------------------------------------------------------
+
+    st.subheader("📊 Mining Data Overview")
+
+    d1, d2, d3, d4 = st.columns(4)
+
+    with d1:
+        if exploration_df is not None:
+            st.metric(
+                "Exploration Records",
+                f"{len(exploration_df):,}"
+            )
+        else:
+            st.metric("Exploration Records", "N/A")
+
+    with d2:
+        if production_df is not None:
+            st.metric(
+                "Production Records",
+                f"{len(production_df):,}"
+            )
+        else:
+            st.metric("Production Records", "N/A")
+
+    with d3:
+        st.metric(
+            "Exploration Features",
+            len(exploration_features)
+        )
+
+    with d4:
+        st.metric(
+            "Production Features",
+            len(production_features)
+        )
+
+    st.divider()
+
+    # --------------------------------------------------------
+    # PRODUCTION KPI
+    # --------------------------------------------------------
+
+    st.subheader("🏭 Production Overview")
+
+    if production_df is not None:
+
+        production_columns = [
+            c for c in production_df.columns
+            if "production" in str(c).lower()
+        ]
+
+        if production_columns:
+
+            numeric_production = []
+
+            for c in production_columns:
+
+                series = pd.to_numeric(
+                    production_df[c],
+                    errors="coerce"
+                )
+
+                if series.notna().any():
+                    numeric_production.append(
+                        (c, series.mean())
+                    )
+
+            k1, k2, k3, k4 = st.columns(4)
+
+            if numeric_production:
+
+                first_name, first_value = numeric_production[0]
+
+                with k1:
+                    st.metric(
+                        "Average Production",
+                        f"{first_value:,.2f}"
+                    )
+
+            target_value = None
+
+            for name, value in numeric_production:
+
+                if "target" in str(name).lower():
+
+                    target_value = value
+                    break
+
+            with k2:
+                if target_value is not None:
+                    st.metric(
+                        "Average Target",
+                        f"{target_value:,.2f}"
+                    )
+                else:
+                    st.metric("Average Target", "N/A")
+
+            with k3:
+                st.metric(
+                    "Production Rows",
+                    f"{len(production_df):,}"
+                )
+
+            with k4:
+                st.metric(
+                    "Production Columns",
+                    f"{len(production_df.columns):,}"
+                )
+
+        else:
+            st.info(
+                "No production column detected in production.csv."
+            )
+
+    else:
+
+        st.error(
+            "production.csv could not be loaded."
+        )
+
+    # --------------------------------------------------------
+    # PRODUCTION GRAPH
+    # --------------------------------------------------------
+
+    st.subheader("📈 Production Analytics")
+
+    if production_df is not None:
+
+        graph_columns = []
+
+        for col in production_df.columns:
+
+            if (
+                "production" in str(col).lower()
+                and
+                pd.to_numeric(
+                    production_df[col],
+                    errors="coerce"
+                ).notna().any()
+            ):
+                graph_columns.append(col)
+
+        if graph_columns:
+
+            chart = production_df[
+                graph_columns
+            ].copy()
+
+            for col in graph_columns:
+                chart[col] = pd.to_numeric(
+                    chart[col],
+                    errors="coerce"
+                )
+
+            st.line_chart(chart)
+
+        else:
+            st.info(
+                "No numeric production columns available "
+                "for graph."
+            )
+
+    # --------------------------------------------------------
+    # ENVIRONMENT GRAPH
+    # --------------------------------------------------------
+
+    st.subheader("🌦️ Environmental Conditions")
+
+    if production_df is not None:
+
+        env_columns = []
+
+        keywords = [
+            "rain",
+            "moisture",
+            "temperature",
+            "vegetation",
+            "ndvi"
+        ]
+
+        for col in production_df.columns:
+
+            name = str(col).lower()
+
+            if any(k in name for k in keywords):
+
+                if pd.to_numeric(
+                    production_df[col],
+                    errors="coerce"
+                ).notna().any():
+
+                    env_columns.append(col)
+
+        if env_columns:
+
+            env = production_df[
+                env_columns
+            ].copy()
+
+            for col in env_columns:
+                env[col] = pd.to_numeric(
+                    env[col],
+                    errors="coerce"
+                )
+
+            st.line_chart(env)
+
+        else:
+            st.info(
+                "No environmental columns detected."
+            )
+
+    # --------------------------------------------------------
+    # THREE MODULES
+    # --------------------------------------------------------
+
+    st.divider()
+
+    st.subheader("🚀 ManganAI Modules")
+
+    c1, c2, c3 = st.columns(3)
+
+    with c1:
+        st.markdown("""
+        <div class="module-card">
+        <h3>📍 Location Prediction</h3>
+        <p>
+        Identify potential manganese locations using
+        exploration and geological information.
+        </p>
+        </div>
+        """, unsafe_allow_html=True)
+
+    with c2:
+        st.markdown("""
+        <div class="module-card">
+        <h3>🏭 Production Prediction</h3>
+        <p>
+        Predict expected manganese production from
+        current mining conditions.
+        </p>
+        </div>
+        """, unsafe_allow_html=True)
+
+    with c3:
+        st.markdown("""
+        <div class="module-card">
+        <h3>🔄 Improvement Simulator</h3>
+        <p>
+        Compare current and improved operating
+        conditions before making decisions.
+        </p>
+        </div>
+        """, unsafe_allow_html=True)
+
+    st.divider()
+
+    st.caption(
+        "ManganAI | Geological + Environmental + "
+        "Production + Equipment Intelligence"
+    )
+
+
+# ============================================================
+# LOCATION PAGE
+# ============================================================
+
+elif page == "📍 Manganese Location Prediction":
+
+    st.title("📍 Manganese Location Prediction")
+
     st.write(
-        "Use the trained exploration model to predict "
+        "Use the trained exploration model to estimate "
         "manganese potential."
     )
 
-    if location_model is None:
+    if exploration_model is None:
 
         st.error(
-            "❌ Location model could not be loaded."
+            "Exploration model could not be loaded."
         )
 
-        if location_error:
-
-            st.code(
-                location_error
-            )
-
         st.info(
-            "Check the models folder and the error shown above."
+            "Expected file: "
+            "models/exploration_model.pkl"
         )
 
         st.stop()
 
-    if not location_features:
+    if not exploration_features:
 
-        st.warning(
-            "The model does not expose feature names."
-        )
-
-        st.write(
-            "The model was loaded, but its training "
-            "feature names are unavailable."
+        st.error(
+            "The exploration model does not expose "
+            "feature names."
         )
 
         st.stop()
 
     st.success(
-        "✅ Location model loaded successfully."
+        f"Exploration model loaded successfully. "
+        f"{len(exploration_features)} input features detected."
     )
 
-    with st.expander(
-        "View exact model features"
-    ):
+    with st.expander("🔎 Model Features"):
 
         st.write(
-            location_features
+            exploration_features
         )
 
     st.subheader(
-        "Enter Location / Geological Values"
+        "Enter Exploration / Geological Values"
     )
 
     location_values = create_inputs(
-        location_features,
-        "location"
+        exploration_features,
+        "exploration"
     )
 
     if st.button(
@@ -1050,35 +738,35 @@ elif page == "📍 Manganese Location Prediction":
         use_container_width=True
     ):
 
-        input_df = pd.DataFrame(
-            [location_values],
-            columns=location_features
-        )
-
         try:
 
-            prediction = location_model.predict(
-                input_df
-            )[0]
+            prediction, input_df = make_prediction(
+                exploration_model,
+                location_values,
+                exploration_features
+            )
 
             st.divider()
 
-            st.subheader(
-                "📊 Prediction Result"
+            st.subheader("🎯 Prediction Result")
+
+            st.metric(
+                "Model Prediction",
+                str(prediction)
             )
 
             st.success(
-                f"Model Prediction: {prediction}"
+                "Exploration prediction completed successfully."
             )
 
-            st.subheader(
-                "📋 Input Data"
-            )
+            with st.expander(
+                "View Input Values"
+            ):
 
-            st.dataframe(
-                input_df,
-                use_container_width=True
-            )
+                st.dataframe(
+                    input_df,
+                    use_container_width=True
+                )
 
         except Exception as e:
 
@@ -1086,47 +774,38 @@ elif page == "📍 Manganese Location Prediction":
                 "Location prediction failed."
             )
 
-            st.code(
-                f"{type(e).__name__}: {e}"
-            )
+            st.code(str(e))
 
 
 # ============================================================
-# PAGE 2
-# PRODUCTION PREDICTION
+# PRODUCTION PAGE
 # ============================================================
 
 elif page == "🏭 Production Prediction":
 
-    st.markdown(
-        '<div class="main-title">'
-        '🏭 Production Prediction'
-        '</div>',
-        unsafe_allow_html=True
-    )
+    st.title("🏭 Production Prediction")
 
     st.write(
-        "Predict expected manganese production from "
+        "Predict expected manganese production using "
         "current mining conditions."
     )
 
     if production_model is None:
 
         st.error(
-            "❌ Production model could not be loaded."
+            "Production model could not be loaded."
         )
 
-        if production_error:
-
-            st.code(
-                production_error
-            )
+        st.info(
+            "Expected file: "
+            "models/production_model.pkl"
+        )
 
         st.stop()
 
     if not production_features:
 
-        st.warning(
+        st.error(
             "The production model does not expose "
             "feature names."
         )
@@ -1134,12 +813,11 @@ elif page == "🏭 Production Prediction":
         st.stop()
 
     st.success(
-        "✅ Production model loaded successfully."
+        f"Production model loaded successfully. "
+        f"{len(production_features)} input features detected."
     )
 
-    with st.expander(
-        "View exact model features"
-    ):
+    with st.expander("🔎 Model Features"):
 
         st.write(
             production_features
@@ -1151,7 +829,7 @@ elif page == "🏭 Production Prediction":
 
     production_values = create_inputs(
         production_features,
-        "production"
+        "production_prediction"
     )
 
     if st.button(
@@ -1160,96 +838,51 @@ elif page == "🏭 Production Prediction":
         use_container_width=True
     ):
 
-        input_df = pd.DataFrame(
-            [production_values],
-            columns=production_features
-        )
-
         try:
 
-            prediction = float(
-                production_model.predict(
-                    input_df
-                )[0]
+            prediction, input_df = make_prediction(
+                production_model,
+                production_values,
+                production_features
             )
 
             st.divider()
 
-            st.subheader(
-                "🎯 Production Prediction"
+            st.subheader("🎯 Production Result")
+
+            st.metric(
+                "Predicted Production",
+                f"{prediction:,.2f} tonnes"
             )
 
-            m1, m2 = st.columns(2)
-
-            with m1:
-
-                st.metric(
-                    "Predicted Production",
-                    f"{prediction:,.2f} tonnes"
-                )
-
-            target_column = None
-
-            for feature in production_features:
-
-                name = str(feature).lower()
-
-                if (
-                    "target" in name
-                    and "production" in name
-                ):
-
-                    target_column = feature
-                    break
-
-            with m2:
-
-                if target_column is not None:
-
-                    target = float(
-                        production_values[
-                            target_column
-                        ]
-                    )
-
-                    achievement = (
-                        prediction / target * 100
-                        if target != 0
-                        else 0
-                    )
-
-                    st.metric(
-                        "Target Achievement",
-                        f"{achievement:.2f}%"
-                    )
+            target_column = find_target_column(
+                production_features
+            )
 
             if target_column is not None:
 
                 target = float(
-                    production_values[
-                        target_column
-                    ]
+                    production_values[target_column]
                 )
 
-                shortfall = (
-                    target - prediction
-                )
+                difference = target - prediction
 
-                if shortfall > 0:
+                if difference > 0:
 
                     st.warning(
-                        f"⚠️ Possible production shortfall: "
-                        f"{shortfall:,.2f} tonnes"
+                        f"⚠️ Estimated shortfall: "
+                        f"{difference:,.2f} tonnes"
                     )
 
                 else:
 
                     st.success(
-                        "✅ Production meets or exceeds target."
+                        "✅ Predicted production meets "
+                        "or exceeds the target."
                     )
 
             with st.expander(
-                "View Values Used for Prediction"
+                "📋 View Values Used"
             ):
 
                 st.dataframe(
@@ -1263,23 +896,17 @@ elif page == "🏭 Production Prediction":
                 "Production prediction failed."
             )
 
-            st.code(
-                f"{type(e).__name__}: {e}"
-            )
+            st.code(str(e))
 
 
 # ============================================================
-# PAGE 3
-# PRODUCTION IMPROVEMENT SIMULATOR
+# SIMULATOR PAGE
 # ============================================================
 
 else:
 
-    st.markdown(
-        '<div class="main-title">'
-        '🔄 Production Improvement Simulator'
-        '</div>',
-        unsafe_allow_html=True
+    st.title(
+        "🔄 Production Improvement Simulator"
     )
 
     st.write(
@@ -1290,22 +917,20 @@ else:
     if production_model is None:
 
         st.error(
-            "❌ Production model could not be loaded."
+            "Production model could not be loaded."
         )
 
-        if production_error:
-
-            st.code(
-                production_error
-            )
+        st.info(
+            "Expected file: "
+            "models/production_model.pkl"
+        )
 
         st.stop()
 
     if not production_features:
 
-        st.warning(
-            "The production model does not expose "
-            "feature names."
+        st.error(
+            "Production model features could not be detected."
         )
 
         st.stop()
@@ -1320,7 +945,7 @@ else:
 
     current_values = create_inputs(
         production_features,
-        "current"
+        "sim_current"
     )
 
     st.divider()
@@ -1334,7 +959,8 @@ else:
     )
 
     st.write(
-        "Change the conditions you want to improve."
+        "Enter the values you want to test in the "
+        "improved scenario."
     )
 
     improved_values = {}
@@ -1352,14 +978,10 @@ else:
                 value=float(
                     current_values[feature]
                 ),
-                key=f"improved_{feature}"
+                key=f"sim_improved_{feature}"
             )
 
     st.divider()
-
-    # --------------------------------------------------------
-    # SIMULATION
-    # --------------------------------------------------------
 
     if st.button(
         "🔮 Compare Current vs Improved Production",
@@ -1367,28 +989,18 @@ else:
         use_container_width=True
     ):
 
-        current_df = pd.DataFrame(
-            [current_values],
-            columns=production_features
-        )
-
-        improved_df = pd.DataFrame(
-            [improved_values],
-            columns=production_features
-        )
-
         try:
 
-            current_prediction = float(
-                production_model.predict(
-                    current_df
-                )[0]
+            current_prediction, current_df = make_prediction(
+                production_model,
+                current_values,
+                production_features
             )
 
-            improved_prediction = float(
-                production_model.predict(
-                    improved_df
-                )[0]
+            improved_prediction, improved_df = make_prediction(
+                production_model,
+                improved_values,
+                production_features
             )
 
             change = (
@@ -1397,62 +1009,57 @@ else:
                 current_prediction
             )
 
-            percentage_change = (
-                (change / current_prediction) * 100
-                if current_prediction != 0
-                else 0
-            )
+            percentage = 0.0
+
+            if current_prediction != 0:
+
+                percentage = (
+                    change /
+                    abs(current_prediction)
+                ) * 100
+
+            st.divider()
 
             st.subheader(
                 "📊 Simulation Result"
             )
 
-            r1, r2, r3, r4 = st.columns(4)
+            c1, c2, c3 = st.columns(3)
 
-            with r1:
+            with c1:
 
                 st.metric(
                     "Current Production",
-                    f"{current_prediction:,.2f}"
+                    f"{current_prediction:,.2f} tonnes"
                 )
 
-            with r2:
+            with c2:
 
                 st.metric(
                     "Improved Production",
-                    f"{improved_prediction:,.2f}"
+                    f"{improved_prediction:,.2f} tonnes"
                 )
 
-            with r3:
+            with c3:
 
                 st.metric(
-                    "Production Change",
-                    f"{change:+,.2f}"
+                    "Change",
+                    f"{change:+,.2f} tonnes",
+                    f"{percentage:+.2f}%"
                 )
-
-            with r4:
-
-                st.metric(
-                    "Percentage Change",
-                    f"{percentage_change:+.2f}%"
-                )
-
-            # ------------------------------------------------
-            # RESULT
-            # ------------------------------------------------
 
             if change > 0:
 
                 st.success(
-                    "🟢 Improved conditions increase "
+                    "🟢 The improved scenario increases "
                     "predicted production."
                 )
 
             elif change < 0:
 
                 st.warning(
-                    "🟠 Improved scenario resulted in "
-                    "lower predicted production."
+                    "🟠 The improved scenario decreases "
+                    "predicted production."
                 )
 
             else:
@@ -1466,68 +1073,67 @@ else:
             # ------------------------------------------------
 
             st.subheader(
-                "💡 Recommended Corrective Actions"
+                "💡 Operational Changes"
             )
 
             recommendations = []
 
             for feature in production_features:
 
-                name = str(feature).lower()
-
                 old = current_values[feature]
                 new = improved_values[feature]
 
-                if (
-                    "downtime" in name
-                    and new < old
-                ):
+                name = str(feature).lower()
+
+                if "downtime" in name and new < old:
 
                     recommendations.append(
-                        f"🔧 Reduce {feature} "
-                        f"from {old} to {new}."
+                        f"🔧 Reduced {feature}: "
+                        f"{old} → {new}"
                     )
 
-                if (
+                elif (
                     "availability" in name
-                    and new > old
+                    and
+                    new > old
                 ):
 
                     recommendations.append(
-                        f"🚜 Increase {feature} "
-                        f"from {old} to {new}."
+                        f"🚜 Increased {feature}: "
+                        f"{old} → {new}"
                     )
 
-                if (
+                elif (
                     "blasting" in name
-                    and "delay" in name
-                    and new < old
+                    and
+                    "delay" in name
+                    and
+                    new < old
                 ):
 
                     recommendations.append(
-                        f"💥 Reduce {feature} "
-                        f"from {old} to {new}."
+                        f"💥 Reduced {feature}: "
+                        f"{old} → {new}"
                     )
 
-            if not recommendations:
+            if recommendations:
 
-                recommendations.append(
-                    "ℹ️ No specific operational change "
-                    "was detected. Try reducing downtime "
-                    "or blasting delay, or increasing "
-                    "equipment availability."
+                for item in recommendations:
+                    st.write(item)
+
+            else:
+
+                st.info(
+                    "No standard operational improvement "
+                    "was detected in the changed inputs."
                 )
 
-            for item in recommendations:
-
-                st.write(item)
-
             # ------------------------------------------------
-            # COMPARISON
+            # COMPARISON TABLE
             # ------------------------------------------------
 
             st.subheader(
-                "📋 Current vs Improved Inputs"
+                "📋 Current vs Improved Conditions"
             )
 
             comparison = pd.DataFrame({
@@ -1555,28 +1161,29 @@ else:
             )
 
             # ------------------------------------------------
-            # PRODUCTION BAR CHART
+            # PRODUCTION COMPARISON GRAPH
             # ------------------------------------------------
 
-            chart = pd.DataFrame({
+            graph = pd.DataFrame({
+
+                "Scenario": [
+                    "Current",
+                    "Improved"
+                ],
 
                 "Production": [
                     current_prediction,
                     improved_prediction
                 ]
 
-            }, index=[
-                "Current",
-                "Improved"
-            ])
+            })
 
             st.subheader(
                 "📈 Production Comparison"
             )
 
             st.bar_chart(
-                chart,
-                use_container_width=True
+                graph.set_index("Scenario")
             )
 
         except Exception as e:
@@ -1585,9 +1192,7 @@ else:
                 "Simulation failed."
             )
 
-            st.code(
-                f"{type(e).__name__}: {e}"
-            )
+            st.code(str(e))
 
 
 # ============================================================
@@ -1596,11 +1201,11 @@ else:
 
 st.sidebar.divider()
 
-st.sidebar.success(
-    "ManganAI Ready"
+st.sidebar.caption(
+    "⛏️ ManganAI"
 )
 
 st.sidebar.caption(
     "AI + Geological + Environmental + "
-    "Equipment Intelligence"
+    "Production Intelligence"
 )
